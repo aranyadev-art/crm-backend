@@ -14,11 +14,18 @@ const createTransporter = () => {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT),
     secure: false, // true for port 465, false for port 587 (TLS)
-    family: 4, // Force IPv4 — Render's network cannot reach Gmail's IPv6 address
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    // ========================================
+    // FORCE IPv4 — Render ke servers outbound IPv6
+    // ko reliably support nahi karte, jisse Gmail SMTP
+    // se connect karte waqt ENETUNREACH error aata hai.
+    // family: 4 force karta hai ki Node.js hamesha
+    // IPv4 address use kare SMTP host resolve karte waqt.
+    // ========================================
+    family: 4,
   });
 };
 
