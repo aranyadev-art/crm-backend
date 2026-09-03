@@ -11,6 +11,7 @@ const { Server } = require("socket.io");
 
 const connectDB = require("./config/db");
 const { verifyToken } = require("./utils/jwt");
+const Conversation = require("./models/Conversation");
 
 const userRoutes = require("./routes/userRoutes");
 const partnerPreferenceRoutes = require("./routes/partnerPreferenceRoutes");
@@ -89,7 +90,9 @@ io.use((socket, next) => {
     );
 
     next(
-      new Error("Invalid or expired authentication token")
+      new Error(
+        "Invalid or expired authentication token"
+      )
     );
   }
 });
@@ -103,9 +106,172 @@ io.on("connection", (socket) => {
     `Socket connected: ${socket.id} | User: ${socket.user.userId} | Role: ${socket.user.role}`
   );
 
-  // Personal room
-  // Har connected user apne userId wale room mein rahega.
-  socket.join(`user:${socket.user.userId}`);
+  // ========================================
+  // PERSONAL USER ROOM
+  // ========================================
+
+  socket.join(
+    `user:${socket.user.userId}`
+  );
+
+  // ========================================
+  // JOIN CONVERSATION ROOM
+  // ========================================
+
+  socket.on(
+    "join_conversation",
+    async (conversationId) => {
+      try {
+        if (!conversationId) return;
+
+        const conversation =
+          await Conversation.findById(
+            conversationId
+          );
+
+        if (!conversation) {
+          return;
+        }
+
+        const userId =
+          socket.user.userId.toString();
+
+        const isParticipant =
+          conversation.participantUser
+            .toString() === userId ||
+          conversation.participantStaff
+            .toString() === userId;
+
+        if (!isParticipant) {
+          console.log(
+            `Unauthorized conversation join attempt by ${userId}`
+          );
+
+          return;
+        }
+
+        socket.join(
+          `conversation:${conversationId}`
+        );
+
+        console.log(
+          `User ${userId} joined conversation ${conversationId}`
+        );
+      } catch (error) {
+        console.error(
+          "Join conversation error:",
+          error.message
+        );
+      }
+    }
+  );
+
+  // ========================================
+  // LEAVE CONVERSATION ROOM
+  // ========================================
+
+  socket.on(
+    "leave_conversation",
+    (conversationId) => {
+      if (!conversationId) return;
+
+      socket.leave(
+        `conversation:${conversationId}`
+      );
+    }
+  );
+
+  // ========================================
+  // TYPING START
+  // ========================================
+
+  socket.on(
+    "typing_start",
+    async (conversationId) => {
+      try {
+        if (!conversationId) return;
+
+        const conversation =
+          await Conversation.findById(
+            conversationId
+          );
+
+        if (!conversation) return;
+
+        const userId =
+          socket.user.userId.toString();
+
+        const isParticipant =
+          conversation.participantUser
+            .toString() === userId ||
+          conversation.participantStaff
+            .toString() === userId;
+
+        if (!isParticipant) return;
+
+        socket
+          .to(`conversation:${conversationId}`)
+          .emit("user_typing", {
+            conversationId,
+            userId,
+            isTyping: true,
+          });
+      } catch (error) {
+        console.error(
+          "Typing start error:",
+          error.message
+        );
+      }
+    }
+  );
+
+  // ========================================
+  // TYPING STOP
+  // ========================================
+
+  socket.on(
+    "typing_stop",
+    async (conversationId) => {
+      try {
+        if (!conversationId) return;
+
+        const conversation =
+          await Conversation.findById(
+            conversationId
+          );
+
+        if (!conversation) return;
+
+        const userId =
+          socket.user.userId.toString();
+
+        const isParticipant =
+          conversation.participantUser
+            .toString() === userId ||
+          conversation.participantStaff
+            .toString() === userId;
+
+        if (!isParticipant) return;
+
+        socket
+          .to(`conversation:${conversationId}`)
+          .emit("user_typing", {
+            conversationId,
+            userId,
+            isTyping: false,
+          });
+      } catch (error) {
+        console.error(
+          "Typing stop error:",
+          error.message
+        );
+      }
+    }
+  );
+
+  // ========================================
+  // DISCONNECT
+  // ========================================
 
   socket.on("disconnect", (reason) => {
     console.log(
@@ -131,7 +297,10 @@ app.use(
   partnerPreferenceRoutes
 );
 
-app.use("/api/matching", matchingRoutes);
+app.use(
+  "/api/matching",
+  matchingRoutes
+);
 
 app.use(
   "/api/shortlists",
@@ -148,28 +317,55 @@ app.use(
   communicationRoutes
 );
 
-app.use("/api/meetings", meetingRoutes);
+app.use(
+  "/api/meetings",
+  meetingRoutes
+);
 
-app.use("/api/inquiries", inquiryRoutes);
+app.use(
+  "/api/inquiries",
+  inquiryRoutes
+);
 
-app.use("/api/dashboard", dashboardRoutes);
+app.use(
+  "/api/dashboard",
+  dashboardRoutes
+);
 
 app.use(
   "/api/notifications",
   notificationRoutes
 );
 
-app.use("/api/reports", reportRoutes);
+app.use(
+  "/api/reports",
+  reportRoutes
+);
 
-app.use("/api/outcomes", outcomeRoutes);
+app.use(
+  "/api/outcomes",
+  outcomeRoutes
+);
 
-app.use("/api/documents", documentRoutes);
+app.use(
+  "/api/documents",
+  documentRoutes
+);
 
-app.use("/api/tasks", taskRoutes);
+app.use(
+  "/api/tasks",
+  taskRoutes
+);
 
-app.use("/api/activities", activityRoutes);
+app.use(
+  "/api/activities",
+  activityRoutes
+);
 
-app.use("/api/messages", messageRoutes);
+app.use(
+  "/api/messages",
+  messageRoutes
+);
 
 app.use(
   "/api/pair-messages",
