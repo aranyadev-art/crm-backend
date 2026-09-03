@@ -15,13 +15,9 @@ const isStaffRole = (role) => role === "admin" || role === "staff";
 // ========================================
 // GET MY CONVERSATIONS
 // ========================================
-// Admin/Staff -> conversations jahan wo participantStaff hain
-// User        -> conversations jahan wo participantUser hain
-// Har conversation ke saath uska unread count bhi attach karte hain.
 
 const getConversations = async (req, res) => {
   try {
-
     const myId = req.user.userId;
     const myRole = req.user.role;
 
@@ -30,11 +26,13 @@ const getConversations = async (req, res) => {
       : { participantUser: myId };
 
     const conversations = await Conversation.find(filter)
-      .populate("participantUser", "fullName profilePhoto onlineStatus lastSeen")
+      .populate(
+        "participantUser",
+        "fullName profilePhoto onlineStatus lastSeen"
+      )
       .populate("participantStaff", "fullName")
       .sort({ lastMessageAt: -1 });
 
-    // Har conversation ke liye unread count nikaalo (mere liye — receiver: me, isRead: false)
     const conversationsWithUnread = await Promise.all(
       conversations.map(async (conv) => {
         const unreadCount = await Message.countDocuments({
@@ -55,9 +53,11 @@ const getConversations = async (req, res) => {
       count: conversationsWithUnread.length,
       data: conversationsWithUnread,
     });
-
   } catch (error) {
-    console.error("Get conversations error:", error.message);
+    console.error(
+      "Get conversations error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -69,15 +69,11 @@ const getConversations = async (req, res) => {
 
 
 // ========================================
-// START / GET CONVERSATION (Admin/Staff only)
+// START / GET CONVERSATION
 // ========================================
-// Body: { userId } — matrimonial user jisse baat karni hai.
-// Agar already exist karti hai (unique index ki wajah se), wahi return
-// hogi. Nahi toh nayi ban jayegi.
 
 const createConversation = async (req, res) => {
   try {
-
     if (!isStaffRole(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -87,14 +83,19 @@ const createConversation = async (req, res) => {
 
     const { userId } = req.body;
 
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    if (
+      !userId ||
+      !mongoose.Types.ObjectId.isValid(userId)
+    ) {
       return res.status(400).json({
         success: false,
         message: "Valid userId is required",
       });
     }
 
-    const userExists = await User.findById(userId).select("_id");
+    const userExists = await User.findById(userId).select(
+      "_id"
+    );
 
     if (!userExists) {
       return res.status(404).json({
@@ -115,18 +116,24 @@ const createConversation = async (req, res) => {
       });
     }
 
-    const populatedConversation = await Conversation.findById(conversation._id)
-      .populate("participantUser", "fullName profilePhoto onlineStatus lastSeen")
-      .populate("participantStaff", "fullName");
+    const populatedConversation =
+      await Conversation.findById(conversation._id)
+        .populate(
+          "participantUser",
+          "fullName profilePhoto onlineStatus lastSeen"
+        )
+        .populate("participantStaff", "fullName");
 
     res.status(201).json({
       success: true,
       message: "Conversation ready",
       data: populatedConversation,
     });
-
   } catch (error) {
-    console.error("Create conversation error:", error.message);
+    console.error(
+      "Create conversation error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -138,17 +145,18 @@ const createConversation = async (req, res) => {
 
 
 // ========================================
-// GET SINGLE CONVERSATION + ITS MESSAGES
+// GET SINGLE CONVERSATION + MESSAGES
 // ========================================
-// Security: sirf wahi dekh sakta hai jo is conversation ka
-// participant hai (chahe user ho ya staff).
 
 const getConversationMessages = async (req, res) => {
   try {
-
-    const conversation = await Conversation.findById(req.params.id)
-      .populate("participantUser", "fullName profilePhoto onlineStatus lastSeen")
-      .populate("participantStaff", "fullName");
+    const conversation =
+      await Conversation.findById(req.params.id)
+        .populate(
+          "participantUser",
+          "fullName profilePhoto onlineStatus lastSeen"
+        )
+        .populate("participantStaff", "fullName");
 
     if (!conversation) {
       return res.status(404).json({
@@ -160,8 +168,10 @@ const getConversationMessages = async (req, res) => {
     const myId = req.user.userId;
 
     const isParticipant =
-      conversation.participantUser?._id.toString() === myId ||
-      conversation.participantStaff?._id.toString() === myId;
+      conversation.participantUser?._id.toString() ===
+        myId ||
+      conversation.participantStaff?._id.toString() ===
+        myId;
 
     if (!isParticipant) {
       return res.status(403).json({
@@ -179,9 +189,11 @@ const getConversationMessages = async (req, res) => {
       conversation,
       data: messages,
     });
-
   } catch (error) {
-    console.error("Get conversation messages error:", error.message);
+    console.error(
+      "Get conversation messages error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -195,22 +207,25 @@ const getConversationMessages = async (req, res) => {
 // ========================================
 // SEND MESSAGE
 // ========================================
-// Body: { conversationId, message }
-// sender hamesha req.user se aata hai — kabhi frontend se accept nahi karte.
 
 const sendMessage = async (req, res) => {
   try {
-
     const { conversationId, message } = req.body;
 
-    if (!conversationId || !message || !message.trim()) {
+    if (
+      !conversationId ||
+      !message ||
+      !message.trim()
+    ) {
       return res.status(400).json({
         success: false,
-        message: "conversationId and message are required",
+        message:
+          "conversationId and message are required",
       });
     }
 
-    const conversation = await Conversation.findById(conversationId);
+    const conversation =
+      await Conversation.findById(conversationId);
 
     if (!conversation) {
       return res.status(404).json({
@@ -222,27 +237,38 @@ const sendMessage = async (req, res) => {
     const myId = req.user.userId;
     const myRole = req.user.role;
 
-    const isParticipantUser = conversation.participantUser.toString() === myId;
-    const isParticipantStaff = conversation.participantStaff.toString() === myId;
+    const isParticipantUser =
+      conversation.participantUser.toString() === myId;
 
-    if (!isParticipantUser && !isParticipantStaff) {
+    const isParticipantStaff =
+      conversation.participantStaff.toString() === myId;
+
+    if (
+      !isParticipantUser &&
+      !isParticipantStaff
+    ) {
       return res.status(403).json({
         success: false,
-        message: "You do not have access to this conversation",
+        message:
+          "You do not have access to this conversation",
       });
     }
 
-    // Doosra participant determine karo (wahi receiver banega)
+    // ========================================
+    // FIND RECEIVER
+    // ========================================
+
     const receiverId = isParticipantUser
       ? conversation.participantStaff
       : conversation.participantUser;
 
-    const receiverRole = isParticipantUser ? "staff" : "user";
-    // Note: participantStaff Admin collection se hai, role admin ya staff
-    // dono ho sakta hai — lekin hume yahan sirf itna pata karna hai ki
-    // receiver "staff-side" hai ya "user-side", isliye generic "staff" theek hai.
-    // Agar exact role chahiye, Admin document se lena padega — abhi ke liye
-    // simplicity ke liye "staff" use kar rahe hain jab bhi receiver admin-side ho.
+    const receiverRole = isParticipantUser
+      ? "staff"
+      : "user";
+
+    // ========================================
+    // CREATE MESSAGE
+    // ========================================
 
     const newMessage = await Message.create({
       conversation: conversation._id,
@@ -254,18 +280,67 @@ const sendMessage = async (req, res) => {
       messageType: "TEXT",
     });
 
+    // ========================================
+    // UPDATE CONVERSATION
+    // ========================================
+
     conversation.lastMessage = message.trim();
     conversation.lastMessageAt = new Date();
+
     await conversation.save();
+
+    // ========================================
+    // SOCKET.IO REAL-TIME MESSAGE
+    // ========================================
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.to(`user:${receiverId.toString()}`).emit(
+        "new_message",
+        {
+          conversationId: conversation._id,
+          message: newMessage,
+        }
+      );
+
+      // Sender ke liye conversation list update
+      io.to(`user:${myId}`).emit(
+        "conversation_updated",
+        {
+          conversationId: conversation._id,
+          lastMessage: newMessage,
+          lastMessageAt:
+            conversation.lastMessageAt,
+        }
+      );
+
+      // Receiver ke liye conversation list update
+      io.to(`user:${receiverId.toString()}`).emit(
+        "conversation_updated",
+        {
+          conversationId: conversation._id,
+          lastMessage: newMessage,
+          lastMessageAt:
+            conversation.lastMessageAt,
+        }
+      );
+    }
+
+    // ========================================
+    // RESPONSE
+    // ========================================
 
     res.status(201).json({
       success: true,
       message: "Message sent",
       data: newMessage,
     });
-
   } catch (error) {
-    console.error("Send message error:", error.message);
+    console.error(
+      "Send message error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -282,8 +357,10 @@ const sendMessage = async (req, res) => {
 
 const markAsRead = async (req, res) => {
   try {
-
-    const conversation = await Conversation.findById(req.params.conversationId);
+    const conversation =
+      await Conversation.findById(
+        req.params.conversationId
+      );
 
     if (!conversation) {
       return res.status(404).json({
@@ -295,13 +372,16 @@ const markAsRead = async (req, res) => {
     const myId = req.user.userId;
 
     const isParticipant =
-      conversation.participantUser.toString() === myId ||
-      conversation.participantStaff.toString() === myId;
+      conversation.participantUser.toString() ===
+        myId ||
+      conversation.participantStaff.toString() ===
+        myId;
 
     if (!isParticipant) {
       return res.status(403).json({
         success: false,
-        message: "You do not have access to this conversation",
+        message:
+          "You do not have access to this conversation",
       });
     }
 
@@ -321,9 +401,11 @@ const markAsRead = async (req, res) => {
       success: true,
       message: "Messages marked as read",
     });
-
   } catch (error) {
-    console.error("Mark as read error:", error.message);
+    console.error(
+      "Mark as read error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
@@ -337,11 +419,9 @@ const markAsRead = async (req, res) => {
 // ========================================
 // GET MY TOTAL UNREAD COUNT
 // ========================================
-// Sidebar badge ke liye — total across all conversations.
 
 const getUnreadCount = async (req, res) => {
   try {
-
     const count = await Message.countDocuments({
       receiver: req.user.userId,
       isRead: false,
@@ -351,9 +431,11 @@ const getUnreadCount = async (req, res) => {
       success: true,
       unreadCount: count,
     });
-
   } catch (error) {
-    console.error("Get unread count error:", error.message);
+    console.error(
+      "Get unread count error:",
+      error.message
+    );
 
     res.status(500).json({
       success: false,
