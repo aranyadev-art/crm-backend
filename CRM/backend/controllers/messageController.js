@@ -4,13 +4,11 @@ const Message = require("../models/Message");
 const User = require("../models/User");
 const Admin = require("../models/Admin");
 
-
 // ========================================
 // HELPER: is current user admin/staff?
 // ========================================
 
 const isStaffRole = (role) => role === "admin" || role === "staff";
-
 
 // ========================================
 // GET MY CONVERSATIONS
@@ -54,10 +52,7 @@ const getConversations = async (req, res) => {
       data: conversationsWithUnread,
     });
   } catch (error) {
-    console.error(
-      "Get conversations error:",
-      error.message
-    );
+    console.error("Get conversations error:", error.message);
 
     res.status(500).json({
       success: false,
@@ -66,7 +61,6 @@ const getConversations = async (req, res) => {
     });
   }
 };
-
 
 // ========================================
 // START / GET CONVERSATION
@@ -83,19 +77,14 @@ const createConversation = async (req, res) => {
 
     const { userId } = req.body;
 
-    if (
-      !userId ||
-      !mongoose.Types.ObjectId.isValid(userId)
-    ) {
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({
         success: false,
         message: "Valid userId is required",
       });
     }
 
-    const userExists = await User.findById(userId).select(
-      "_id"
-    );
+    const userExists = await User.findById(userId).select("_id");
 
     if (!userExists) {
       return res.status(404).json({
@@ -116,13 +105,14 @@ const createConversation = async (req, res) => {
       });
     }
 
-    const populatedConversation =
-      await Conversation.findById(conversation._id)
-        .populate(
-          "participantUser",
-          "fullName profilePhoto onlineStatus lastSeen"
-        )
-        .populate("participantStaff", "fullName");
+    const populatedConversation = await Conversation.findById(
+      conversation._id
+    )
+      .populate(
+        "participantUser",
+        "fullName profilePhoto onlineStatus lastSeen"
+      )
+      .populate("participantStaff", "fullName");
 
     res.status(201).json({
       success: true,
@@ -130,10 +120,7 @@ const createConversation = async (req, res) => {
       data: populatedConversation,
     });
   } catch (error) {
-    console.error(
-      "Create conversation error:",
-      error.message
-    );
+    console.error("Create conversation error:", error.message);
 
     res.status(500).json({
       success: false,
@@ -143,20 +130,18 @@ const createConversation = async (req, res) => {
   }
 };
 
-
 // ========================================
 // GET SINGLE CONVERSATION + MESSAGES
 // ========================================
 
 const getConversationMessages = async (req, res) => {
   try {
-    const conversation =
-      await Conversation.findById(req.params.id)
-        .populate(
-          "participantUser",
-          "fullName profilePhoto onlineStatus lastSeen"
-        )
-        .populate("participantStaff", "fullName");
+    const conversation = await Conversation.findById(req.params.id)
+      .populate(
+        "participantUser",
+        "fullName profilePhoto onlineStatus lastSeen"
+      )
+      .populate("participantStaff", "fullName");
 
     if (!conversation) {
       return res.status(404).json({
@@ -168,10 +153,8 @@ const getConversationMessages = async (req, res) => {
     const myId = req.user.userId;
 
     const isParticipant =
-      conversation.participantUser?._id.toString() ===
-        myId ||
-      conversation.participantStaff?._id.toString() ===
-        myId;
+      conversation.participantUser?._id.toString() === myId ||
+      conversation.participantStaff?._id.toString() === myId;
 
     if (!isParticipant) {
       return res.status(403).json({
@@ -190,10 +173,7 @@ const getConversationMessages = async (req, res) => {
       data: messages,
     });
   } catch (error) {
-    console.error(
-      "Get conversation messages error:",
-      error.message
-    );
+    console.error("Get conversation messages error:", error.message);
 
     res.status(500).json({
       success: false,
@@ -203,7 +183,6 @@ const getConversationMessages = async (req, res) => {
   }
 };
 
-
 // ========================================
 // SEND MESSAGE
 // ========================================
@@ -212,20 +191,14 @@ const sendMessage = async (req, res) => {
   try {
     const { conversationId, message } = req.body;
 
-    if (
-      !conversationId ||
-      !message ||
-      !message.trim()
-    ) {
+    if (!conversationId || !message || !message.trim()) {
       return res.status(400).json({
         success: false,
-        message:
-          "conversationId and message are required",
+        message: "conversationId and message are required",
       });
     }
 
-    const conversation =
-      await Conversation.findById(conversationId);
+    const conversation = await Conversation.findById(conversationId);
 
     if (!conversation) {
       return res.status(404).json({
@@ -243,32 +216,18 @@ const sendMessage = async (req, res) => {
     const isParticipantStaff =
       conversation.participantStaff.toString() === myId;
 
-    if (
-      !isParticipantUser &&
-      !isParticipantStaff
-    ) {
+    if (!isParticipantUser && !isParticipantStaff) {
       return res.status(403).json({
         success: false,
-        message:
-          "You do not have access to this conversation",
+        message: "You do not have access to this conversation",
       });
     }
-
-    // ========================================
-    // FIND RECEIVER
-    // ========================================
 
     const receiverId = isParticipantUser
       ? conversation.participantStaff
       : conversation.participantUser;
 
-    const receiverRole = isParticipantUser
-      ? "staff"
-      : "user";
-
-    // ========================================
-    // CREATE MESSAGE
-    // ========================================
+    const receiverRole = isParticipantUser ? "staff" : "user";
 
     const newMessage = await Message.create({
       conversation: conversation._id,
@@ -280,17 +239,13 @@ const sendMessage = async (req, res) => {
       messageType: "TEXT",
     });
 
-    // ========================================
-    // UPDATE CONVERSATION
-    // ========================================
-
     conversation.lastMessage = message.trim();
     conversation.lastMessageAt = new Date();
 
     await conversation.save();
 
     // ========================================
-    // SOCKET.IO REAL-TIME MESSAGE
+    // SOCKET.IO - REAL TIME MESSAGE
     // ========================================
 
     const io = req.app.get("io");
@@ -304,32 +259,24 @@ const sendMessage = async (req, res) => {
         }
       );
 
-      // Sender ke liye conversation list update
       io.to(`user:${myId}`).emit(
         "conversation_updated",
         {
           conversationId: conversation._id,
           lastMessage: newMessage,
-          lastMessageAt:
-            conversation.lastMessageAt,
+          lastMessageAt: conversation.lastMessageAt,
         }
       );
 
-      // Receiver ke liye conversation list update
       io.to(`user:${receiverId.toString()}`).emit(
         "conversation_updated",
         {
           conversationId: conversation._id,
           lastMessage: newMessage,
-          lastMessageAt:
-            conversation.lastMessageAt,
+          lastMessageAt: conversation.lastMessageAt,
         }
       );
     }
-
-    // ========================================
-    // RESPONSE
-    // ========================================
 
     res.status(201).json({
       success: true,
@@ -337,10 +284,7 @@ const sendMessage = async (req, res) => {
       data: newMessage,
     });
   } catch (error) {
-    console.error(
-      "Send message error:",
-      error.message
-    );
+    console.error("Send message error:", error.message);
 
     res.status(500).json({
       success: false,
@@ -350,6 +294,141 @@ const sendMessage = async (req, res) => {
   }
 };
 
+// ========================================
+// DELETE MESSAGE — DELETE FOR EVERYONE
+// ========================================
+// Sirf message ka sender apna message delete kar sakta hai.
+
+const deleteMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid message ID",
+      });
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: "Message not found",
+      });
+    }
+
+    const myId = req.user.userId;
+
+    // ========================================
+    // ONLY MESSAGE SENDER CAN DELETE
+    // ========================================
+
+    if (message.sender.toString() !== myId) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only delete your own messages",
+      });
+    }
+
+    const conversationId = message.conversation;
+    const receiverId = message.receiver;
+
+    // Message delete karne se pehle message ID save karo
+    const deletedMessageId = message._id.toString();
+
+    await Message.findByIdAndDelete(messageId);
+
+    // ========================================
+    // UPDATE CONVERSATION LAST MESSAGE
+    // ========================================
+
+    const latestMessage = await Message.findOne({
+      conversation: conversationId,
+    }).sort({ createdAt: -1 });
+
+    const conversation = await Conversation.findById(
+      conversationId
+    );
+
+    if (conversation) {
+      if (latestMessage) {
+        conversation.lastMessage = latestMessage.message;
+        conversation.lastMessageAt = latestMessage.createdAt;
+      } else {
+        conversation.lastMessage = "";
+        conversation.lastMessageAt = conversation.createdAt;
+      }
+
+      await conversation.save();
+    }
+
+    // ========================================
+    // SOCKET.IO - REAL TIME DELETE
+    // ========================================
+
+    const io = req.app.get("io");
+
+    if (io) {
+      // Sender ko
+      io.to(`user:${myId}`).emit(
+        "message_deleted",
+        {
+          conversationId: conversationId,
+          messageId: deletedMessageId,
+        }
+      );
+
+      // Receiver ko
+      io.to(`user:${receiverId.toString()}`).emit(
+        "message_deleted",
+        {
+          conversationId: conversationId,
+          messageId: deletedMessageId,
+        }
+      );
+
+      // Sidebar update
+      if (conversation) {
+        io.to(`user:${myId}`).emit(
+          "conversation_updated",
+          {
+            conversationId: conversationId,
+            lastMessage: latestMessage || null,
+            lastMessageAt: conversation.lastMessageAt,
+          }
+        );
+
+        io.to(`user:${receiverId.toString()}`).emit(
+          "conversation_updated",
+          {
+            conversationId: conversationId,
+            lastMessage: latestMessage || null,
+            lastMessageAt: conversation.lastMessageAt,
+          }
+        );
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Message deleted for everyone",
+      data: {
+        messageId: deletedMessageId,
+        conversationId,
+      },
+    });
+  } catch (error) {
+    console.error("Delete message error:", error.message);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete message",
+      error: error.message,
+    });
+  }
+};
 
 // ========================================
 // MARK CONVERSATION AS READ
@@ -357,10 +436,9 @@ const sendMessage = async (req, res) => {
 
 const markAsRead = async (req, res) => {
   try {
-    const conversation =
-      await Conversation.findById(
-        req.params.conversationId
-      );
+    const conversation = await Conversation.findById(
+      req.params.conversationId
+    );
 
     if (!conversation) {
       return res.status(404).json({
@@ -372,16 +450,13 @@ const markAsRead = async (req, res) => {
     const myId = req.user.userId;
 
     const isParticipant =
-      conversation.participantUser.toString() ===
-        myId ||
-      conversation.participantStaff.toString() ===
-        myId;
+      conversation.participantUser.toString() === myId ||
+      conversation.participantStaff.toString() === myId;
 
     if (!isParticipant) {
       return res.status(403).json({
         success: false,
-        message:
-          "You do not have access to this conversation",
+        message: "You do not have access to this conversation",
       });
     }
 
@@ -402,10 +477,7 @@ const markAsRead = async (req, res) => {
       message: "Messages marked as read",
     });
   } catch (error) {
-    console.error(
-      "Mark as read error:",
-      error.message
-    );
+    console.error("Mark as read error:", error.message);
 
     res.status(500).json({
       success: false,
@@ -414,7 +486,6 @@ const markAsRead = async (req, res) => {
     });
   }
 };
-
 
 // ========================================
 // GET MY TOTAL UNREAD COUNT
@@ -432,10 +503,7 @@ const getUnreadCount = async (req, res) => {
       unreadCount: count,
     });
   } catch (error) {
-    console.error(
-      "Get unread count error:",
-      error.message
-    );
+    console.error("Get unread count error:", error.message);
 
     res.status(500).json({
       success: false,
@@ -445,12 +513,12 @@ const getUnreadCount = async (req, res) => {
   }
 };
 
-
 module.exports = {
   getConversations,
   createConversation,
   getConversationMessages,
   sendMessage,
+  deleteMessage,
   markAsRead,
   getUnreadCount,
 };
